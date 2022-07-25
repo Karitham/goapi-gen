@@ -10,9 +10,9 @@ import (
 
 // Schema represents an OpenAPI type definition.
 type Schema struct {
-	CustomImports []string // The custom imports which are needed for x-go-type-external
-	GoType        string   // The Go type needed to represent the schema
-	RefType       string   // If the type has a type name, this is set
+	GoImports []string // The custom imports which are needed for x-go-type
+	GoType    string   // The Go type needed to represent the schema
+	RefType   string   // If the type has a type name, this is set
 
 	ArrayType *Schema // The schema of array element
 
@@ -113,12 +113,13 @@ type Constants struct {
 //
 // Let's use this example schema:
 // components:
-//  schemas:
-//    Person:
-//      type: object
-//      properties:
-//      name:
-//        type: string
+//
+//	schemas:
+//	  Person:
+//	    type: object
+//	    properties:
+//	    name:
+//	      type: string
 type TypeDefinition struct {
 	// The name of the type, eg, type <...> Person
 	TypeName string
@@ -185,10 +186,10 @@ func GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
 	}
 
 	outSchema := Schema{
-		CustomImports: []string{},
-		Description:   StringToGoComment(schema.Description),
-		OAPISchema:    schema,
-		Bindable:      true,
+		GoImports:   []string{},
+		Description: StringToGoComment(schema.Description),
+		OAPISchema:  schema,
+		Bindable:    true,
 	}
 
 	// FIXME(hhhapz): We can probably support this in a meaningful way.
@@ -222,21 +223,22 @@ func GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
 			if typeDetails.Alias != "" {
 				// we need to set the gotype with the correct import name
 				outSchema.GoType = fmt.Sprintf("%s.%s", typeDetails.Alias, typeDetails.Type)
-				outSchema.CustomImports = append(outSchema.CustomImports, fmt.Sprintf("%s \"%s\"", typeDetails.Alias, typeDetails.Import))
-			} else {
-				// as no alias is provided we need to take the import
-
-				// if there is an import name specified instead of an alias, take it
-				if strings.Contains(typeDetails.Import, ":") {
-					splitImport := strings.Split(typeDetails.Import, ":")
-					outSchema.GoType = fmt.Sprintf("%s.%s", splitImport[1], typeDetails.Type)
-					typeDetails.Import = splitImport[0]
-				} else {
-					splitImport := strings.Split(typeDetails.Import, "/")
-					outSchema.GoType = fmt.Sprintf("%s.%s", splitImport[len(splitImport)-1], typeDetails.Type)
-				}
-				outSchema.CustomImports = append(outSchema.CustomImports, fmt.Sprintf("\"%s\"", typeDetails.Import))
+				outSchema.GoImports = append(outSchema.GoImports, fmt.Sprintf("%s \"%s\"", typeDetails.Alias, typeDetails.Import))
+				return outSchema, nil
 			}
+
+			// as no alias is provided we need to take the import
+			// if there is an import name specified instead of an alias, take it
+			if strings.Contains(typeDetails.Import, ":") {
+				splitImport := strings.Split(typeDetails.Import, ":")
+				outSchema.GoType = fmt.Sprintf("%s.%s", splitImport[1], typeDetails.Type)
+				outSchema.GoImports = append(outSchema.GoImports, fmt.Sprintf("\"%s\"", splitImport[0]))
+				return outSchema, nil
+			}
+
+			splitImport := strings.Split(typeDetails.Import, "/")
+			outSchema.GoType = fmt.Sprintf("%s.%s", splitImport[len(splitImport)-1], typeDetails.Type)
+			outSchema.GoImports = append(outSchema.GoImports, fmt.Sprintf("\"%s\"", typeDetails.Import))
 		}
 		return outSchema, nil
 	}
